@@ -18,8 +18,8 @@ build:
 
 requirements:
   build:
-    - libtool
-    - make
+    - libtool    # [unix]
+    - make       # [unix]
     - automake   # [unix]
     - gnuconfig  # [unix]
     - m2-base    # [win]
