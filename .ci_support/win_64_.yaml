@@ -1,0 +1,16 @@
+c_compiler:
+- m2w64-gcc
+c_compiler_version:
+- '13'
+c_stdlib:
+- m2w64-gcc-libs
+channel_sources:
+- conda-forge
+channel_targets:
+- conda-forge main
+libpng:
+- '1.6'
+target_platform:
+- win-64
+zlib:
+- '1'

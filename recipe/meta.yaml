@@ -12,7 +12,6 @@ source:
 
 build:
   number: 0
-  skip: true  # [win]
   run_exports:
     - {{ pin_subpackage("m4rie") }}
 
@@ -23,6 +22,11 @@ requirements:
     - make
     - automake   # [unix]
     - gnuconfig  # [unix]
+    - m2-base    # [win]
+    - m2-make    # [win]
+    - m2-autoconf  # [win]
+    - m2-automake  # [win]
+    - m2-libtool   # [win]
     - {{ compiler('c') }}
     - {{ stdlib('c') }}
   host:
@@ -32,10 +36,13 @@ requirements:
 
 test:
   commands:
-    - test -f ${PREFIX}/include/m4rie/m4rie.h
-    - test -f ${PREFIX}/lib/lib{{ name }}.a
-    - test -f ${PREFIX}/lib/lib{{ name }}.dylib  # [osx]
-    - test -f ${PREFIX}/lib/lib{{ name }}.so     # [linux]
+    - test -f ${PREFIX}/include/m4rie/m4rie.h                         # [unix]
+    - test -f ${PREFIX}/lib/lib{{ name }}.a                           # [unix]
+    - test -f ${PREFIX}/lib/lib{{ name }}.dylib                       # [osx]
+    - test -f ${PREFIX}/lib/lib{{ name }}.so                          # [linux]
+    - if not exist %PREFIX%\Library\include\m4rie\m4rie.h exit 1      # [win]
+    - if not exist %PREFIX%\Library\lib\lib{{ name }}.a exit 1        # [win]
+    - if not exist %PREFIX%\Library\bin\lib{{ name }}*.dll exit 1     # [win]
 
 about:
   home: https://github.com/malb/m4rie

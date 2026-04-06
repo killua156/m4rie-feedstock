@@ -1,0 +1,62 @@
+# This file was generated automatically from conda-smithy. To update this configuration,
+# update the conda-forge.yml and/or the recipe/meta.yaml.
+# -*- mode: yaml -*-
+
+jobs:
+- job: win
+  pool:
+    vmImage: windows-2022
+  strategy:
+    matrix:
+      win_64_:
+        CONFIG: win_64_
+        UPLOAD_PACKAGES: 'True'
+  timeoutInMinutes: 360
+  variables: {}
+
+  steps:
+  - script: |
+      call activate base
+      conda config --set show_channel_urls true
+      conda config --add channels conda-forge
+      conda config --set channel_priority strict
+      conda install --yes --quiet conda-build conda-forge-ci-setup=4 "conda-build>=24.1"
+    displayName: Install conda-build
+
+  - script: |
+      call activate base
+      setup_conda_rc .\ .\recipe .\.ci_support\%CONFIG%.yaml
+      source run_conda_forge_build_setup
+    displayName: Configure conda
+    shell: cmd
+
+  - script: |
+      call activate base
+      set CI=azure
+      set flow_run_id=azure_%BUILD_BUILDNUMBER%.%SYSTEM_JOBATTEMPT%
+      set remote_url=%BUILD_REPOSITORY_URI%
+      set sha=%BUILD_SOURCEVERSION%
+      set GIT_BRANCH=%BUILD_SOURCEBRANCHNAME%
+      set FEEDSTOCK_NAME=%BUILD_REPOSITORY_NAME%
+      if "%BUILD_REASON%"=="PullRequest" (
+        set IS_PR_BUILD=True
+      ) else (
+        set IS_PR_BUILD=False
+      )
+      make_build_number .\ .\recipe .\.ci_support\%CONFIG%.yaml
+      conda-build .\recipe -m .\.ci_support\%CONFIG%.yaml --suppress-variables --clobber-file .\.ci_support\clobber_%CONFIG%.yaml --extra-meta flow_run_id="%flow_run_id%" remote_url="%remote_url%" sha="%sha%"
+    displayName: Run Windows build
+    env:
+      BINSTAR_TOKEN: $(BINSTAR_TOKEN)
+      FEEDSTOCK_TOKEN: $(FEEDSTOCK_TOKEN)
+      STAGING_BINSTAR_TOKEN: $(STAGING_BINSTAR_TOKEN)
+
+  - script: |
+      call activate base
+      if "%UPLOAD_PACKAGES%"=="True" if "%IS_PR_BUILD%"=="False" (
+        upload_package --validate --feedstock-name="%FEEDSTOCK_NAME%" .\ .\recipe .\.ci_support\%CONFIG%.yaml
+      )
+    displayName: Upload packages
+    env:
+      BINSTAR_TOKEN: $(BINSTAR_TOKEN)
+      STAGING_BINSTAR_TOKEN: $(STAGING_BINSTAR_TOKEN)
