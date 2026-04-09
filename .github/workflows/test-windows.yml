@@ -1,0 +1,28 @@
+name: Test Windows Build (MSVC/clang-cl)
+
+on:
+  push:
+    branches: [MSVC]
+  workflow_dispatch:
+
+jobs:
+  build-win-64:
+    runs-on: windows-2022
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Miniforge
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        miniforge-version: latest
+        channels: conda-forge
+        channel-priority: strict
+        activate-environment: ""
+
+    - name: Install conda-build
+      shell: bash -el {0}
+      run: conda install -n base -c conda-forge conda-build conda-forge-pinning
+
+    - name: Build m4rie (win-64, clang-cl)
+      shell: bash -el {0}
+      run: conda build recipe -m .ci_support/win_64_.yaml -c conda-forge --no-anaconda-upload --croot C:/bld
