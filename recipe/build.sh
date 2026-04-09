@@ -13,14 +13,33 @@ drive, rest = p.split(':', 1)
 print('/' + drive.lower() + rest)
 ")
 
-    # Prefer clang-cl over cl.exe: m4rie uses __builtin_ctzll / __builtin_popcountll
-    # and __attribute__((optimize(...))), which cl.exe doesn't support.
-    # clang-cl accepts GCC-compatible flags and builtins while producing MSVC-ABI
-    # objects that link against the MSVC runtime.
+    # Use clang-cl instead of cl.exe: m4rie uses __builtin_ctzll / __builtin_popcountll
+    # and __attribute__((optimize(...))), which cl.exe does not support.
+    # clang-cl accepts GCC-compatible builtins while producing MSVC-ABI objects.
+    # VS2022 ships clang-cl but does not put it on PATH automatically — search
+    # the known LLVM subdirectory inside the VS installation.
+    _clang_cl=""
     if command -v clang-cl >/dev/null 2>&1; then
-        export CC=clang-cl
+        _clang_cl=$(command -v clang-cl)
+    else
+        # VS2022 installs LLVM tools at VC/Tools/Llvm/x64/bin/ inside the VS root.
+        # $VCToolsInstallDir is set by the VS activation scripts.
+        for _candidate in \
+            "${VCToolsInstallDir:+${VCToolsInstallDir}../../Llvm/x64/bin/clang-cl.exe}" \
+            "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/Llvm/x64/bin/clang-cl.exe" \
+            "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/Llvm/x64/bin/clang-cl.exe" \
+            "C:/Program Files/Microsoft Visual Studio/2022/BuildTools/VC/Tools/Llvm/x64/bin/clang-cl.exe"; do
+            [[ -f "${_candidate}" ]] && _clang_cl="${_candidate}" && break
+        done
     fi
-    # AR, RANLIB, DLLTOOL, etc. come from the conda-forge toolchain activation.
+    if [[ -n "${_clang_cl}" ]]; then
+        export CC="${_clang_cl}"
+    else
+        echo "ERROR: clang-cl not found; cl.exe cannot compile m4rie (GCC builtins required)" >&2
+        exit 1
+    fi
+    unset _clang_cl _candidate
+    # AR, RANLIB, DLLTOOL, etc. come from the conda-forge VS2022 toolchain activation.
 
     export CFLAGS="-O2 -g"
     export CPPFLAGS="-I${INSTALL_PREFIX}/include"
