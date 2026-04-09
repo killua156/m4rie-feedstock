@@ -13,23 +13,15 @@ drive, rest = p.split(':', 1)
 print('/' + drive.lower() + rest)
 ")
 
-    # Locate the MinGW-w64 cross-compiler installed in the conda base env
-    if command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1; then
-        export CC=x86_64-w64-mingw32-gcc
-        # Leave AR/RANLIB/etc. unset so configure auto-detects the real MinGW
-        # tools (m2w64-binutils provides ar/ranlib without the cross-prefix).
-        export AR=$(command -v x86_64-w64-mingw32-ar)
-        export RANLIB=$(command -v x86_64-w64-mingw32-ranlib)
-        export STRIP=$(command -v x86_64-w64-mingw32-strip)
-        export NM=$(command -v x86_64-w64-mingw32-nm)
-        export DLLTOOL=$(command -v x86_64-w64-mingw32-dlltool)
-        export OBJDUMP=$(command -v x86_64-w64-mingw32-objdump)
-    else
-        export CC=gcc
+    # Prefer clang-cl over cl.exe: m4rie uses __builtin_ctzll / __builtin_popcountll
+    # and __attribute__((optimize(...))), which cl.exe doesn't support.
+    # clang-cl accepts GCC-compatible flags and builtins while producing MSVC-ABI
+    # objects that link against the MSVC runtime.
+    if command -v clang-cl >/dev/null 2>&1; then
+        export CC=clang-cl
     fi
+    # AR, RANLIB, DLLTOOL, etc. come from the conda-forge toolchain activation.
 
-    # Override CFLAGS completely — conda-build sets MSVC flags when vs2022_win-64
-    # is in build requirements; those flags are incompatible with MinGW.
     export CFLAGS="-O2 -g"
     export CPPFLAGS="-I${INSTALL_PREFIX}/include"
     export LDFLAGS="-L${INSTALL_PREFIX}/lib"
@@ -60,7 +52,7 @@ print('/' + drive.lower() + rest)
     # which makes all subsequent compiler feature checks fail (they look for
     # "conftest.0" instead of "conftest.exe").
     export ac_cv_exeext='.exe'
-    export ac_cv_objext='o'
+    export ac_cv_objext='obj'
 
     # MSYS2's /usr/bin/expr also corrupts --opt=VALUE parsing in autoconf
     # (returns 0 instead of VALUE). Use an array with space separators so
@@ -69,9 +61,6 @@ print('/' + drive.lower() + rest)
         --prefix "${INSTALL_PREFIX}"
         --libdir "${INSTALL_PREFIX}/lib"
     )
-    if [[ "${CC}" == x86_64-w64-mingw32-gcc ]]; then
-        configure_args+=(--host x86_64-w64-mingw32)
-    fi
 
     # Set SHELL and CONFIG_SHELL to the current bash executable (no spaces in path).
     # configure's line ~261 re-execs itself via: exec $SHELL "$0" "$@"
@@ -89,19 +78,17 @@ print('/' + drive.lower() + rest)
     fi
 
     # conda-forge's m4ri ships m4ri.lib + m4ri-2.dll but NOT libm4ri.dll.a.
-    # Build a proper MinGW import library so libtool finds m4ri as a shared
+    # Build a GNU-format import library so libtool can detect m4ri as a shared
     # dependency.  Without it libtool falls back to static-only and emits:
     #   "linker path does not have real file for library -lm4ri"
     #
-    # Symbol extraction strategy: nm on m4ri.lib reads __imp_XXX stubs for
-    # all exported functions. dlltool --output-def fails on MSVC-built DLLs
-    # with this toolchain so we avoid it.
+    # Symbol extraction: nm on m4ri.lib reads __imp_XXX stubs for all exported
+    # functions. dlltool --output-def fails on MSVC-built DLLs so we avoid it.
     #
     # DATA annotation: m4ri_codebook and m4ri_cantor_basis are global arrays.
-    # MinGW's .refptr. mechanism references them by direct name (not __imp_).
-    # dlltool generates the required direct-name stub only when the symbol is
-    # listed as "NAME DATA" in the def file.  The MSVC .lib omits these from
-    # its __imp_XXX section, so we append them unconditionally.
+    # They must be listed as "NAME DATA" in the def file so dlltool generates
+    # the correct IAT pointer stub.  The MSVC .lib omits them from __imp_XXX
+    # so we append them unconditionally.
     _m4ri_implib="${INSTALL_PREFIX}/lib/libm4ri.dll.a"
     _m4ri_dotlib="${INSTALL_PREFIX}/lib/m4ri.lib"
     if [[ ! -f "${_m4ri_implib}" && -f "${_m4ri_dotlib}" ]]; then
